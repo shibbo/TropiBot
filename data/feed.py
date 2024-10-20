@@ -42,7 +42,8 @@ class FeedManager:
 
     def addFeed(self, name, url):
         if name in self.feeds:
-            raise ValueError(f"Feed with name {name} already exists.")
+            self.feeds[name]._url = url
+            return
     
         feed = Feed(url)
         self.feeds[name] = feed
@@ -52,7 +53,16 @@ class FeedManager:
             raise ValueError(f"No feed with name {name} exists.")
         
         return self.feeds[name].getItems()
+    
+    def refreshFeeds(self):
+        for name, feed in self.feeds.items():
+            feed.stopPoll()
+            new_feed = Feed(feed._url)
+            self.feeds[name] = new_feed
 
     def stopAllFeeds(self):
         for feed in self.feeds.values():
             feed.stopPoll()
+
+    def hasFeed(self, name):
+        return name in self.feeds

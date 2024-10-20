@@ -1,53 +1,73 @@
-from data.feed import Feed, FeedManager
+from data.feed import FeedManager
 from data.outlook import Outlook
 from data.wallet import Wallet
 import time
-import sys
 
-BASINS = [ "at", "ep", "cp" ]
-# if we are using local things, this is mainly for testing
-USE_LOCAL = False
+BASINS = ["at", "ep", "cp"]
+USE_LOCAL = False  # Toggle this to switch between local and remote URLs
 
-if __name__ == "__main__":
-    mgr = FeedManager()
+def add_feeds(mgr, use_local):
+    if use_local:
+        add_local_feeds(mgr)
+    else:
+        add_remote_feeds(mgr)
 
-    # TWOs (Tropical Weather Outlooks)
+def add_local_feeds(mgr):
+    wallet_url = "https://shibbo.net/trop/wallet_test.xml"
+    discussion_url = "https://shibbo.net/trop/wallet_discussion_test.xml"
+    mgr.addFeed("test", wallet_url)
+    mgr.addFeed("test_disc", discussion_url)
+    print("Added local test feeds.")
+
+def add_remote_feeds(mgr):
+    for basin in BASINS:
+        for i in range(1, 6):
+            wallet_url = f"https://www.nhc.noaa.gov/nhc_{basin}{i}.xml"
+            discussion_url = f"https://www.nhc.noaa.gov/xml/TCD{basin.upper()}{i}.xml"
+            mgr.addFeed(f"wallet_{basin}{i}", wallet_url)
+            mgr.addFeed(f"disc_{basin.upper()}{i}", discussion_url)
+    print("Added remote feeds for all basins.")
+
+def initialize_outlooks(mgr):
     mgr.addFeed("AT_TWO", "https://www.nhc.noaa.gov/index-at.xml")
     mgr.addFeed("EP_TWO", "https://www.nhc.noaa.gov/index-ep.xml")
     mgr.addFeed("CP_TWO", "https://www.nhc.noaa.gov/index-cp.xml")
 
-    if USE_LOCAL:
-        wallet_url = "https://shibbo.net/trop/wallet_test.xml"
-        discussion_url = "https://shibbo.net/trop/wallet_discussion_test.xml"
-        mgr.addFeed("test", wallet_url)
-        mgr.addFeed("test_disc", discussion_url)
-    else:
-        for basin in BASINS:
-            for i in range(1, 5):
-                wallet_url = f"https://www.nhc.noaa.gov/nhc_{basin}{i}.xml"
-                discussion_url = f"https://www.nhc.noaa.gov/xml/TCD{basin.upper()}{i}.xml"
-                feed_name = f"wallet_{basin}{i}"
-                disc_name = f"disc_{basin.upper()}{i}"
-                mgr.addFeed(feed_name, wallet_url)
-                mgr.addFeed(disc_name, discussion_url)
+    time.sleep(5)
 
-    time.sleep(10)
+    outlooks = {
+        "AT": Outlook(mgr.getFeedItems("AT_TWO")),
+        "EP": Outlook(mgr.getFeedItems("EP_TWO")),
+        "CP": Outlook(mgr.getFeedItems("CP_TWO")),
+    }
+    print("Outlooks initialized.")
+    return outlooks
 
-    # store our current outlooks
-    outlooks = {}
-    outlooks["AT"] = Outlook(mgr.getFeedItems("AT_TWO"))
-    outlooks["EP"] = Outlook(mgr.getFeedItems("EP_TWO"))
-    outlooks["CP"] = Outlook(mgr.getFeedItems("CP_TWO"))
-
+def initialize_wallets(mgr, use_local):
     wallets = {}
-
-    if USE_LOCAL:
+    if use_local:
         wallets["test"] = Wallet(mgr.getFeedItems("test"), mgr.getFeedItems("test_disc"))
     else:
         for basin in BASINS:
-            for i in range(1, 5):
-                feed_name = f"wallet_{basin}{i}"
-                disc_name = f"disc_{basin.upper()}{i}"       
-                wallets[feed_name] = Wallet(mgr.getFeedItems(feed_name), mgr.getFeedItems(disc_name))
+            for i in range(1, 6):
+                wallet_name = f"wallet_{basin}{i}"
+                disc_name = f"disc_{basin.upper()}{i}"
+                cur_wallet = Wallet(mgr.getFeedItems(wallet_name), mgr.getFeedItems(disc_name))
+                active_wallet_name = cur_wallet.stormName() if not cur_wallet.isInactive else wallet_name
+                wallets[active_wallet_name] = cur_wallet
+
+    print("Wallets initialized.")
+    return wallets
+
+if __name__ == "__main__":
+    mgr = FeedManager()
+
+    add_feeds(mgr, USE_LOCAL)
+    
+    time.sleep(10)
+
+    outlooks = initialize_outlooks(mgr)
+    wallets = initialize_wallets(mgr, USE_LOCAL)
 
     mgr.stopAllFeeds()
+    print("Feeds stopped. Test complete.")
